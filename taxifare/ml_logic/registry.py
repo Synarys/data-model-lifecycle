@@ -25,12 +25,14 @@ def save_results(params: dict, metrics: dict) -> None:
 
     # Save params locally
     if params is not None:
+        mlflow.log_params(params)
         params_path = os.path.join(LOCAL_REGISTRY_PATH, "params", timestamp + ".pickle")
         with open(params_path, "wb") as file:
             pickle.dump(params, file)
 
     # Save metrics locally
     if metrics is not None:
+        mlflow.log_metrics(metrics)
         metrics_path = os.path.join(LOCAL_REGISTRY_PATH, "metrics", timestamp + ".pickle")
         with open(metrics_path, "wb") as file:
             pickle.dump(metrics, file)
@@ -67,9 +69,13 @@ def save_model(model: keras.Model = None) -> None:
         return None
 
     if MODEL_TARGET == "mlflow":
-        pass  # YOUR CODE HERE
+        mlflow.tensorflow.log_model(model=model,
+                        artifact_path="model",
+                        registered_model_name=MLFLOW_MODEL_NAME
+                        )
+        print("✅ Model saved to mlflow")
 
-    return None
+
 
 
 def load_model(stage="Production") -> keras.Model:
@@ -129,9 +135,23 @@ def load_model(stage="Production") -> keras.Model:
         print(Fore.BLUE + f"\nLoad [{stage}] model from MLflow..." + Style.RESET_ALL)
 
         # Load model from MLflow
-        model = None
-        pass  # YOUR CODE HERE
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        client = MlflowClient()
+
+        try:
+            model_versions = client.get_latest_versions(name=MLFLOW_MODEL_NAME, stages=[stage])
+            model_uri = model_versions[0].source
+            assert model_uri is not None
+        except:
+            print(f"\n❌ No model found with name {MLFLOW_MODEL_NAME} in stage {stage}")
+            return None
+
+        model = mlflow.tensorflow.load_model(model_uri=model_uri)
+
+        print("✅ model loaded from mlflow")
+
         return model
+
     else:
         return None
 
